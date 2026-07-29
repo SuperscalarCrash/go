@@ -63,6 +63,7 @@ var KnownArch = map[string]bool{
 	"armbe":       true,
 	"arm64":       true,
 	"arm64be":     true,
+	"loong32r":    true,
 	"loong64":     true,
 	"mips":        true,
 	"mipsle":      true,

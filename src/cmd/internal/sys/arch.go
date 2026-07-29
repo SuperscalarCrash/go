@@ -13,17 +13,18 @@ import (
 type ArchFamily = goarch.ArchFamilyType
 
 const (
-	AMD64   = goarch.AMD64
-	ARM     = goarch.ARM
-	ARM64   = goarch.ARM64
-	I386    = goarch.I386
-	Loong64 = goarch.LOONG64
-	MIPS    = goarch.MIPS
-	MIPS64  = goarch.MIPS64
-	PPC64   = goarch.PPC64
-	RISCV64 = goarch.RISCV64
-	S390X   = goarch.S390X
-	Wasm    = goarch.WASM
+	AMD64    = goarch.AMD64
+	ARM      = goarch.ARM
+	ARM64    = goarch.ARM64
+	I386     = goarch.I386
+	Loong32r = goarch.LOONG32R
+	Loong64  = goarch.LOONG64
+	MIPS     = goarch.MIPS
+	MIPS64   = goarch.MIPS64
+	PPC64    = goarch.PPC64
+	RISCV64  = goarch.RISCV64
+	S390X    = goarch.S390X
+	Wasm     = goarch.WASM
 )
 
 // Arch represents an individual architecture.
@@ -150,6 +151,22 @@ var ArchLoong64 = &Arch{
 	FixedFrameSize: 8, // LR
 }
 
+// ArchLoong32r describes the 32-bit reduced LoongArch architecture (LA32R).
+// LA32R requires naturally aligned half-word and word memory accesses.
+var ArchLoong32r = &Arch{
+	Name:           "loong32r",
+	Family:         Loong32r,
+	ByteOrder:      binary.LittleEndian,
+	PtrSize:        4,
+	RegSize:        4,
+	MinLC:          4,
+	Alignment:      4,
+	CanMergeLoads:  false,
+	CanJumpTable:   true,
+	HasLR:          true,
+	FixedFrameSize: 4, // LR
+}
+
 var ArchMIPS = &Arch{
 	Name:           "mips",
 	Family:         MIPS,
@@ -274,6 +291,7 @@ var Archs = [...]*Arch{
 	ArchAMD64,
 	ArchARM,
 	ArchARM64,
+	ArchLoong32r,
 	ArchLoong64,
 	ArchMIPS,
 	ArchMIPSLE,
