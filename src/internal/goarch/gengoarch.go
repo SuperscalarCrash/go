@@ -46,6 +46,12 @@ func main() {
 		fmt.Fprintf(&buf, "package goarch\n\n")
 		fmt.Fprintf(&buf, "const GOARCH = `%s`\n\n", target)
 		for _, goarch := range goarches {
+			// IsLoong32r lives in a separate pair of build-tagged files. Keeping
+			// this marker out of every pre-existing architecture's generated file
+			// lets the LA32R registration remain self-contained.
+			if goarch == "loong32r" {
+				continue
+			}
 			value := 0
 			if goarch == target {
 				value = 1

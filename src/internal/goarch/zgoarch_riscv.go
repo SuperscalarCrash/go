@@ -13,7 +13,6 @@ const IsArm = 0
 const IsArmbe = 0
 const IsArm64 = 0
 const IsArm64be = 0
-const IsLoong32r = 0
 const IsLoong64 = 0
 const IsMips = 0
 const IsMipsle = 0
