@@ -73,13 +73,13 @@ jobs:
           case "$TARGET_GOOS" in
             linux)
               archive="pkg/distpack/${version}.${TARGET_GOOS}-${TARGET_GOARCH}.tar.gz"
-              tar -tzf "$archive" | grep -qx 'go/bin/go'
-              tar -tzf "$archive" | grep -qx "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile"
+              tar -tzf "$archive" 'go/bin/go' >/dev/null
+              tar -tzf "$archive" "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile" >/dev/null
               ;;
             windows)
               archive="pkg/distpack/${version}.${TARGET_GOOS}-${TARGET_GOARCH}.zip"
-              unzip -Z1 "$archive" | grep -qx 'go/bin/go.exe'
-              unzip -Z1 "$archive" | grep -qx "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile.exe"
+              unzip -Z1 "$archive" 'go/bin/go.exe' >/dev/null
+              unzip -Z1 "$archive" "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile.exe" >/dev/null
               ;;
             *)
               echo "unsupported target OS: $TARGET_GOOS" >&2
