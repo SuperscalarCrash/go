@@ -54,6 +54,23 @@ type S struct {
 	}
 }
 
+func TestSizesForLoong32r(t *testing.T) {
+	for _, compiler := range []string{"gc", "gccgo"} {
+		sizes := types.SizesFor(compiler, "loong32r")
+		if sizes == nil {
+			t.Fatalf("SizesFor(%q, %q) = nil", compiler, "loong32r")
+		}
+		if got := sizes.Sizeof(types.Typ[types.Uintptr]); got != 4 {
+			t.Errorf("SizesFor(%q, %q).Sizeof(uintptr) = %d, want 4", compiler, "loong32r", got)
+		}
+	}
+
+	gccgo := types.SizesFor("gccgo", "loong32r")
+	if got := gccgo.Alignof(types.Typ[types.Float64]); got != 8 {
+		t.Errorf("SizesFor(%q, %q).Alignof(float64) = %d, want 8", "gccgo", "loong32r", got)
+	}
+}
+
 // go.dev/issue/16464
 func TestAlignofNaclSlice(t *testing.T) {
 	const src = `
