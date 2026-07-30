@@ -390,7 +390,15 @@ int errors[] = {
 "
 	for i in $errors
 	do
-		echo -E '	'$i,
+		# During cross generation the string-table helper runs on the build
+		# host. Keep its indexes tied to the target header values emitted by
+		# godefs instead of the host's errno macros.
+		if [[ -n "$MKERRORS_HOST_CC" ]]; then
+			value=$(awk -v name="$i" '$1 == name && $2 == "=" { print $3; exit }' _error.out)
+			echo -E '	'${value:?missing value for $i},
+		else
+			echo -E '	'$i,
+		fi
 	done
 
 	echo -E "
@@ -400,7 +408,12 @@ int signals[] = {
 "
 	for i in $signals
 	do
-		echo -E '	'$i,
+		if [[ -n "$MKERRORS_HOST_CC" ]]; then
+			value=$(awk -v name="$i" '$1 == name && $2 == "=" { print $3; exit }' _error.out)
+			echo -E '	'${value:?missing value for $i},
+		else
+			echo -E '	'$i,
+		fi
 	done
 
 	# Use -E because on some systems bash builtin interprets \n itself.
@@ -459,4 +472,13 @@ main(void)
 '
 ) >_errors.c
 
-$CC $ccflags -o _errors _errors.c && $GORUN ./_errors && rm -f _errors.c _errors _const.go _error.grep _signal.grep _error.out
+if [[ -n "$MKERRORS_HOST_CC" ]]; then
+	$MKERRORS_HOST_CC -o _errors _errors.c && ./_errors
+else
+	$CC $ccflags -o _errors _errors.c && $GORUN ./_errors
+fi
+status=$?
+if [[ $status -eq 0 ]]; then
+	rm -f _errors.c _errors _const.go _error.grep _signal.grep _error.out
+fi
+exit $status

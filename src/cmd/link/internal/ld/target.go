@@ -116,6 +116,10 @@ func (t *Target) IsLOONG64() bool {
 	return t.Arch.Family == sys.Loong64
 }
 
+func (t *Target) IsLOONG32R() bool {
+	return t.Arch.Family == sys.Loong32r
+}
+
 func (t *Target) IsPPC64() bool {
 	return t.Arch.Family == sys.PPC64
 }

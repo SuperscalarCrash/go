@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build linux && (386 || arm || loong64 || mips || mipsle || mips64 || mips64le || riscv64)
+//go:build linux && (386 || arm || loong32r || loong64 || mips || mipsle || mips64 || mips64le || riscv64)
 
 #include <pthread.h>
 #include <string.h>

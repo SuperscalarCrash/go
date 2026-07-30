@@ -83,7 +83,7 @@ var distInfo = map[OSArch]osArchInfo{
 	{"linux", "amd64"}:     {CgoSupported: true, FirstClass: true},
 	{"linux", "arm"}:       {CgoSupported: true, FirstClass: true},
 	{"linux", "arm64"}:     {CgoSupported: true, FirstClass: true},
-	{"linux", "loong32r"}:  {},
+	{"linux", "loong32r"}:  {CgoSupported: true},
 	{"linux", "loong64"}:   {CgoSupported: true},
 	{"linux", "mips"}:      {CgoSupported: true},
 	{"linux", "mips64"}:    {CgoSupported: true},

@@ -775,6 +775,8 @@ func (f *File) applyRelocations(dst []byte, rels []byte) error {
 		return f.applyRelocationsMIPS(dst, rels)
 	case f.Class == ELFCLASS64 && f.Machine == EM_MIPS:
 		return f.applyRelocationsMIPS64(dst, rels)
+	case f.Class == ELFCLASS32 && f.Machine == EM_LOONGARCH:
+		return f.applyRelocationsLOONG32R(dst, rels)
 	case f.Class == ELFCLASS64 && f.Machine == EM_LOONGARCH:
 		return f.applyRelocationsLOONG64(dst, rels)
 	case f.Class == ELFCLASS64 && f.Machine == EM_RISCV:
@@ -1096,6 +1098,41 @@ func (f *File) applyRelocationsMIPS64(dst []byte, rels []byte) error {
 		}
 	}
 
+	return nil
+}
+
+func (f *File) applyRelocationsLOONG32R(dst []byte, rels []byte) error {
+	// LA32R uses Elf32_Rela records, each 12 bytes wide.
+	if len(rels)%12 != 0 {
+		return errors.New("length of relocation section is not a multiple of 12")
+	}
+
+	symbols, _, err := f.getSymbols(SHT_SYMTAB)
+	if err != nil {
+		return err
+	}
+
+	b := bytes.NewReader(rels)
+	var rela Rela32
+	for b.Len() > 0 {
+		if err := binary.Read(b, f.ByteOrder, &rela); err != nil {
+			return err
+		}
+		symNo := R_SYM32(rela.Info)
+		if symNo == 0 || symNo > uint32(len(symbols)) {
+			continue
+		}
+		sym := &symbols[symNo-1]
+		if !canApplyRelocation(sym) {
+			continue
+		}
+
+		// DWARF produced for LA32R uses absolute 32-bit section-relative
+		// references. Other relocation kinds do not describe DWARF offsets.
+		if R_LARCH(R_TYPE32(rela.Info)) == R_LARCH_32 {
+			putUint(f.ByteOrder, dst, uint64(rela.Off), 4, sym.Value, int64(rela.Addend), false)
+		}
+	}
 	return nil
 }
 

@@ -338,6 +338,18 @@ func NewConfig(arch string, types Types, ctxt *obj.Link, optimize, softfloat boo
 		c.FPReg = framepointerRegMIPS
 		c.LinkReg = linkRegMIPS
 		c.hasGReg = true
+	case "loong32r":
+		c.PtrSize = 4
+		c.RegSize = 4
+		c.lowerBlock = rewriteBlockLOONG32R
+		c.lowerValue = rewriteValueLOONG32R
+		c.registers = registersLOONG32R[:]
+		c.gpRegMask = gpRegMaskLOONG32R
+		c.fpRegMask = fpRegMaskLOONG32R
+		c.specialRegMask = specialRegMaskLOONG32R
+		c.FPReg = framepointerRegLOONG32R
+		c.LinkReg = linkRegLOONG32R
+		c.hasGReg = true
 	case "riscv64":
 		c.PtrSize = 8
 		c.RegSize = 8

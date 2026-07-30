@@ -39,6 +39,8 @@ func main() {
 	switch *pkg {
 	case "arm64":
 		start = "var cnames7 = []string{\n\t\"\", // C_NONE starts from 1\n"
+	case "loong32r":
+		start = "var cnames0 = []string{\n"
 	case "loong64", "mips":
 		start = "var cnames0 = []string{\n"
 	case "ppc64":
@@ -46,7 +48,7 @@ func main() {
 	case "s390x":
 		start = "var cnamesz = []string{\n"
 	default:
-		fmt.Printf("Only supports generating Cnames for arm64,loong64,mips,ppc64,s390x.")
+		fmt.Printf("Only supports generating Cnames for arm64,loong32r,loong64,mips,ppc64,s390x.")
 		os.Exit(0)
 	}
 

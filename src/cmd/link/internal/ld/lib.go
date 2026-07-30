@@ -2307,6 +2307,8 @@ func hostlinkArchArgs(arch *sys.Arch) []string {
 		}
 	case sys.Loong64:
 		return []string{"-mabi=lp64d"}
+	case sys.Loong32r:
+		return []string{"-mabi=ilp32s"}
 	case sys.MIPS64:
 		return []string{"-mabi=64"}
 	case sys.MIPS:

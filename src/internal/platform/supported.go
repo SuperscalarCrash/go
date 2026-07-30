@@ -134,6 +134,12 @@ func BuildModeSupported(compiler, buildmode, goos, goarch string) bool {
 	}
 
 	platform := goos + "/" + goarch
+	if platform == "linux/loong32r" {
+		switch buildmode {
+		case "c-archive", "c-shared", "pie", "plugin":
+			return true
+		}
+	}
 	switch buildmode {
 	case "archive":
 		return true
@@ -217,6 +223,9 @@ func BuildModeSupported(compiler, buildmode, goos, goarch string) bool {
 }
 
 func InternalLinkPIESupported(goos, goarch string) bool {
+	if goos == "linux" && goarch == "loong32r" {
+		return true
+	}
 	switch goos + "/" + goarch {
 	case "android/arm64",
 		"darwin/amd64", "darwin/arm64",

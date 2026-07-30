@@ -10,6 +10,7 @@ import (
 	"cmd/link/internal/arm"
 	"cmd/link/internal/arm64"
 	"cmd/link/internal/ld"
+	"cmd/link/internal/loong32r"
 	"cmd/link/internal/loong64"
 	"cmd/link/internal/mips"
 	"cmd/link/internal/mips64"
@@ -54,6 +55,8 @@ func main() {
 		arch, theArch = arm.Init()
 	case "arm64":
 		arch, theArch = arm64.Init()
+	case "loong32r":
+		arch, theArch = loong32r.Init()
 	case "loong64":
 		arch, theArch = loong64.Init()
 	case "mips", "mipsle":

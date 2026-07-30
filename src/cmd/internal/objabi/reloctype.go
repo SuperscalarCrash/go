@@ -426,6 +426,46 @@ const (
 	R_DWTXTADDR_U3
 	R_DWTXTADDR_U4
 
+	// Loong32r.
+
+	// R_LOONG32R_ADDR_HI resolves to the sign-adjusted upper 20 bits of a
+	// 32-bit PC-relative address, by encoding it into a PCADDU12I instruction.
+	// R_LOONG32R_ADDR_LO resolves to the low 12 bits relative to the address
+	// of the paired PCADDU12I instruction.
+	R_LOONG32R_ADDR_HI
+	R_LOONG32R_ADDR_LO
+	R_LOONG32R_ADDR_PCREL20_S2
+
+	// R_LOONG32R_TLS_LE_HI and R_LOONG32R_TLS_LE_LO encode the high and
+	// low parts of a 32-bit offset from the thread pointer.
+	R_LOONG32R_TLS_LE_HI
+	R_LOONG32R_TLS_LE_LO
+
+	// R_CALLLOONG32R resolves the 28-bit, 4-byte-aligned PC-relative target
+	// address of a BL instruction.
+	R_CALLLOONG32R
+	R_LOONG32R_CALL30
+
+	// R_LOONG32R_TLS_IE_HI and R_LOONG32R_TLS_IE_LO address the GOT slot
+	// for an initial-exec TLS symbol with PCADDU12I and LD.W.
+	R_LOONG32R_TLS_IE_HI
+	R_LOONG32R_TLS_IE_LO
+
+	// R_LOONG32R_GOT_HI and R_LOONG32R_GOT_LO address a GOT entry with
+	// PCADDU12I followed by a 12-bit load or add instruction.
+	R_LOONG32R_GOT_HI
+	R_LOONG32R_GOT_LO
+
+	// R_JMP16LOONG32R and R_JMP21LOONG32R encode conditional branches.
+	R_JMP16LOONG32R
+	R_JMP21LOONG32R
+
+	// R_JMPLOONG32R resolves the target address of a B instruction.
+	R_JMPLOONG32R
+
+	R_LOONG32R_ADD32
+	R_LOONG32R_SUB32
+
 	// R_WEAK marks the relocation as a weak reference.
 	// A weak relocation does not make the symbol it refers to reachable,
 	// and is only honored by the linker if the symbol is in some other way
@@ -442,6 +482,9 @@ const (
 // with limited width. An indirect call is a CALL instruction that takes
 // the target address in register or memory.
 func (r RelocType) IsDirectCall() bool {
+	if r == R_CALLLOONG32R {
+		return true
+	}
 	switch r {
 	case R_CALL, R_CALLARM, R_CALLARM64, R_CALLLOONG64, R_CALLMIPS, R_CALLPOWER,
 		R_RISCV_CALL, R_RISCV_JAL, R_RISCV_JAL_TRAMP:
@@ -460,6 +503,8 @@ func (r RelocType) IsDirectJump() bool {
 	case R_JMPMIPS:
 		return true
 	case R_JMPLOONG64:
+		return true
+	case R_JMPLOONG32R:
 		return true
 	}
 	return false

@@ -23,7 +23,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:build arm || 386 || mips || mipsle
+//go:build arm || 386 || loong32r || mips || mipsle
 
 package runtime
 
@@ -229,8 +229,9 @@ func dodiv(n, d uint64) (q, r uint64) {
 		return slowdodiv(n, d)
 	}
 
-	if GOARCH == "mips" || GOARCH == "mipsle" {
-		// No _div64by32 on mips and using only _mul64by32 doesn't bring much benefit
+	if GOARCH == "loong32r" || GOARCH == "mips" || GOARCH == "mipsle" {
+		// These ports use slowdodiv instead of architecture-specific 64-by-32
+		// helper assembly.
 		return slowdodiv(n, d)
 	}
 

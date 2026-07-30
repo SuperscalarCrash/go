@@ -112,6 +112,7 @@ const (
 	ELF32SHDRSIZE = 40
 	ELF32SYMSIZE  = 16
 	ELF32RELSIZE  = 8
+	ELF32RELASIZE = 12
 )
 
 var elfstrdat []byte
@@ -170,10 +171,12 @@ var buildinfo []byte
 func Elfinit(ctxt *Link) {
 	ctxt.IsELF = true
 
+	elfRelType = ".rel"
+	if ctxt.Arch.Family == sys.Loong32r {
+		elfRelType = ".rela"
+	}
 	if ctxt.Arch.InFamily(sys.AMD64, sys.ARM64, sys.Loong64, sys.MIPS64, sys.PPC64, sys.RISCV64, sys.S390X) {
 		elfRelType = ".rela"
-	} else {
-		elfRelType = ".rel"
 	}
 
 	switch ctxt.Arch.Family {
@@ -204,7 +207,10 @@ func Elfinit(ctxt *Link) {
 		ehdr.Shentsize = ELF64SHDRSIZE // Must be ELF64SHDRSIZE
 
 	// 32-bit architectures
-	case sys.ARM, sys.MIPS:
+	case sys.ARM, sys.Loong32r, sys.MIPS:
+		if ctxt.Arch.Family == sys.Loong32r {
+			ehdr.Flags = 0x41 // ILP32 soft-float, object ABI v1
+		}
 		if ctxt.Arch.Family == sys.ARM {
 			// we use EABI on linux/arm, freebsd/arm, netbsd/arm.
 			if ctxt.HeadType == objabi.Hlinux || ctxt.HeadType == objabi.Hfreebsd || ctxt.HeadType == objabi.Hnetbsd {
@@ -1562,7 +1568,11 @@ func (ctxt *Link) doelf() {
 			rela := ldr.LookupOrCreateSym(".rela", 0)
 			elfWriteDynEntSym(ctxt, dynamic, elf.DT_RELA, rela)
 			elfwritedynentsymsize(ctxt, dynamic, elf.DT_RELASZ, rela)
-			Elfwritedynent(ctxt.Arch, dynamic, elf.DT_RELAENT, ELF64RELASIZE)
+			relaSize := uint64(ELF64RELASIZE)
+			if !elf64 {
+				relaSize = ELF32RELASIZE
+			}
+			Elfwritedynent(ctxt.Arch, dynamic, elf.DT_RELAENT, relaSize)
 		} else {
 			rel := ldr.LookupOrCreateSym(".rel", 0)
 			elfWriteDynEntSym(ctxt, dynamic, elf.DT_REL, rel)
@@ -1715,6 +1725,8 @@ func asmbElf(ctxt *Link) {
 		Exitf("unknown architecture in asmbelf: %v", ctxt.Arch.Family)
 	case sys.MIPS, sys.MIPS64:
 		eh.Machine = uint16(elf.EM_MIPS)
+	case sys.Loong32r:
+		eh.Machine = uint16(elf.EM_LOONGARCH)
 	case sys.Loong64:
 		eh.Machine = uint16(elf.EM_LOONGARCH)
 	case sys.ARM:
@@ -1970,10 +1982,14 @@ func asmbElf(ctxt *Link) {
 		}
 
 		if elfRelType == ".rela" {
+			relaSize := uint64(ELF64RELASIZE)
+			if !elf64 {
+				relaSize = ELF32RELASIZE
+			}
 			sh := elfshname(".rela.plt")
 			sh.Type = uint32(elf.SHT_RELA)
 			sh.Flags = uint64(elf.SHF_ALLOC)
-			sh.Entsize = ELF64RELASIZE
+			sh.Entsize = relaSize
 			sh.Addralign = uint64(ctxt.Arch.RegSize)
 			sh.link = elfshname(".dynsym")
 			sh.info = elfshname(".plt")
@@ -1982,7 +1998,7 @@ func asmbElf(ctxt *Link) {
 			sh = elfshname(".rela")
 			sh.Type = uint32(elf.SHT_RELA)
 			sh.Flags = uint64(elf.SHF_ALLOC)
-			sh.Entsize = ELF64RELASIZE
+			sh.Entsize = relaSize
 			sh.Addralign = 8
 			sh.link = elfshname(".dynsym")
 			shsym(sh, ldr, ldr.Lookup(".rela", 0))

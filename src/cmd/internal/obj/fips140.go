@@ -389,6 +389,19 @@ func (s *LSym) checkFIPSReloc(ctxt *Link, rel Reloc) {
 		objabi.R_RISCV_RVC_JUMP,
 		objabi.R_TLS_IE,
 		objabi.R_TLS_LE,
+		objabi.R_CALLLOONG32R,
+		objabi.R_LOONG32R_ADDR_LO,         // used with PC-relative load
+		objabi.R_LOONG32R_ADDR_HI,         // used with PC-relative load
+		objabi.R_LOONG32R_ADDR_PCREL20_S2, // used with PC-relative load
+		objabi.R_LOONG32R_TLS_LE_HI,
+		objabi.R_LOONG32R_TLS_LE_LO,
+		objabi.R_LOONG32R_TLS_IE_HI,
+		objabi.R_LOONG32R_TLS_IE_LO,
+		objabi.R_LOONG32R_GOT_HI,
+		objabi.R_LOONG32R_GOT_LO,
+		objabi.R_JMP16LOONG32R,
+		objabi.R_JMP21LOONG32R,
+		objabi.R_JMPLOONG32R,
 		objabi.R_WEAKADDROFF:
 		// ok
 		return

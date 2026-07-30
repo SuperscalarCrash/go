@@ -1780,7 +1780,7 @@ var cgoEnabled = map[string]bool{
 	"linux/amd64":     true,
 	"linux/arm":       true,
 	"linux/arm64":     true,
-	"linux/loong32r":  false,
+	"linux/loong32r":  true,
 	"linux/loong64":   true,
 	"linux/ppc64":     false,
 	"linux/ppc64le":   true,

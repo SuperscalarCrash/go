@@ -522,6 +522,8 @@ const (
 	RBaseLOONG64 = 19 * 1024 // range [19K, 22k)
 )
 
+const RBaseLOONG32R = 24 * 1024 // range [24K, 25K), independent of LA64's extended encodings
+
 // RegisterRegister binds a pretty-printer (Rconv) for register
 // numbers to a given register number range. Lo is inclusive,
 // hi exclusive (valid registers are lo through hi-1).

@@ -31,7 +31,8 @@ sub fmt {
 }
 
 my $prev;
-open(GCC, "gcc -E -dD $ARGV[0] |") || die "can't run gcc";
+my $cc = $ENV{'CC'} || "gcc";
+open(GCC, "$cc -E -dD $ARGV[0] |") || die "can't run $cc";
 while(<GCC>){
 	if(/^#define __NR_Linux\s+([0-9]+)/){
 		# mips/mips64: extract offset

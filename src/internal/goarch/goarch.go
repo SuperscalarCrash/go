@@ -21,7 +21,6 @@ const (
 	ARM
 	ARM64
 	I386
-	LOONG32R
 	LOONG64
 	MIPS
 	MIPS64
@@ -29,6 +28,7 @@ const (
 	RISCV64
 	S390X
 	WASM
+	LOONG32R
 )
 
 // PtrSize is the size of a pointer in bytes - unsafe.Sizeof(uintptr(0)) but as an ideal constant.

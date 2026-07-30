@@ -474,6 +474,14 @@ func (p *Parser) asmJump(op obj.As, cond string, a []obj.Addr) {
 			prog.Reg = p.getRegister(prog, op, &a[1])
 			break
 		}
+		if p.arch.Family == sys.Loong32r {
+			// LA32R three-operand branches use two register operands followed
+			// by the branch target.
+			target = &a[2]
+			prog.From = a[0]
+			prog.Reg = p.getRegister(prog, op, &a[1])
+			break
+		}
 		if p.arch.Family == sys.Loong64 {
 			// 3-operand jumps.
 			// First two must be registers
@@ -642,6 +650,21 @@ func (p *Parser) asmInstruction(op obj.As, cond string, a []obj.Addr) {
 				prog.Reg = p.getRegister(prog, op, &a[1])
 				break
 			}
+		} else if p.arch.Family == sys.Loong32r {
+			if arch.IsLoong32rRDTIME(op) {
+				prog.To = a[0]
+				if a[1].Type != obj.TYPE_REG {
+					p.errorf("invalid addressing modes for 2nd operand to %s instruction, must be register", op)
+					return
+				}
+				prog.RegTo2 = a[1].Reg
+				break
+			}
+			if arch.IsLoong32rPRELD(op) {
+				prog.From = a[0]
+				prog.AddRestSource(a[1])
+				break
+			}
 		} else if p.arch.Family == sys.Loong64 {
 			if arch.IsLoong64RDTIME(op) {
 				// The Loong64 RDTIME family of instructions is a bit special,
@@ -665,7 +688,7 @@ func (p *Parser) asmInstruction(op obj.As, cond string, a []obj.Addr) {
 		prog.To = a[1]
 	case 3:
 		switch p.arch.Family {
-		case sys.MIPS, sys.MIPS64:
+		case sys.MIPS, sys.MIPS64, sys.Loong32r:
 			prog.From = a[0]
 			prog.Reg = p.getRegister(prog, op, &a[1])
 			prog.To = a[2]
@@ -843,6 +866,13 @@ func (p *Parser) asmInstruction(op obj.As, cond string, a []obj.Addr) {
 			break
 		}
 		if p.arch.Family == sys.ARM64 {
+			prog.From = a[0]
+			prog.Reg = p.getRegister(prog, op, &a[1])
+			prog.AddRestSource(a[2])
+			prog.To = a[3]
+			break
+		}
+		if p.arch.Family == sys.Loong32r {
 			prog.From = a[0]
 			prog.Reg = p.getRegister(prog, op, &a[1])
 			prog.AddRestSource(a[2])

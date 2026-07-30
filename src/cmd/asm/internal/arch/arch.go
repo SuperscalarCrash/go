@@ -9,6 +9,7 @@ import (
 	"cmd/internal/obj"
 	"cmd/internal/obj/arm"
 	"cmd/internal/obj/arm64"
+	"cmd/internal/obj/loong32r"
 	"cmd/internal/obj/loong64"
 	"cmd/internal/obj/mips"
 	"cmd/internal/obj/ppc64"
@@ -61,6 +62,8 @@ func Set(GOARCH string, shared bool) *Arch {
 		return archArm()
 	case "arm64":
 		return archArm64()
+	case "loong32r":
+		return archLoong32r()
 	case "loong64":
 		return archLoong64(&loong64.Linkloong64)
 	case "mips":
@@ -83,6 +86,49 @@ func Set(GOARCH string, shared bool) *Arch {
 		return archWasm()
 	}
 	return nil
+}
+
+func archLoong32r() *Arch {
+	register := make(map[string]int16)
+	for i := loong32r.REG_R0; i <= loong32r.REG_R31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := loong32r.REG_F0; i <= loong32r.REG_F31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := loong32r.REG_FCSR0; i <= loong32r.REG_FCSR3; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := loong32r.REG_FCC0; i <= loong32r.REG_FCC7; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	register["SB"] = RSB
+	register["FP"] = RFP
+	register["PC"] = RPC
+	delete(register, "R22")
+	register["g"] = loong32r.REGG
+
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range loong32r.Anames {
+		if s != "" && obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseLoong32r
+		}
+	}
+	instructions["JAL"] = loong32r.AJAL
+
+	return &Arch{
+		LinkArch:     &loong32r.Linkloong32r,
+		Instructions: instructions,
+		Register:     register,
+		RegisterPrefix: map[string]bool{
+			"F": true, "FCSR": true, "FCC": true, "R": true,
+		},
+		RegisterNumber: loong32rRegisterNumber,
+		IsJump:         jumpLoong32r,
+	}
 }
 
 func jumpX86(word string) bool {

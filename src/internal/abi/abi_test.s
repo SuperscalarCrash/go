@@ -10,6 +10,9 @@
 #ifdef GOARCH_arm
 #define PTRSIZE 4
 #endif
+#ifdef GOARCH_loong32r
+#define PTRSIZE 4
+#endif
 #ifdef GOARCH_mips
 #define PTRSIZE 4
 #endif

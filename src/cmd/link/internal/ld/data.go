@@ -83,6 +83,8 @@ func maxSizeTrampolines(ctxt *Link, ldr *loader.Loader, s loader.Sym, isTramp bo
 		return n * 20 // Trampolines in ARM range from 3 to 5 instructions.
 	case ctxt.IsARM64():
 		return n * 12 // Trampolines in ARM64 are 3 instructions.
+	case ctxt.IsLOONG32R():
+		return n * 12 // LA32R trampolines are 3 instructions.
 	case ctxt.IsLOONG64():
 		return n * 12 // Trampolines in LOONG64 are 3 instructions.
 	case ctxt.IsPPC64():
@@ -154,7 +156,11 @@ func isPLTCall(arch *sys.Arch, rt objabi.RelocType) bool {
 		uint32(sys.ARM) | uint32(objabi.ElfRelocOffset+objabi.RelocType(elf.R_ARM_JUMP24))<<8:
 		return true
 
-	// Loong64
+	// LA32R
+	case uint32(sys.Loong32r) | uint32(objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_B26))<<8:
+		return true
+
+	// LA64
 	case uint32(sys.Loong64) | uint32(objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_B26))<<8:
 		return true
 	}

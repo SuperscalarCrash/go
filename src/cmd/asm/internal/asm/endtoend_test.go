@@ -466,6 +466,14 @@ func TestMIPSEndToEnd(t *testing.T) {
 	testEndToEnd(t, "mips64", "mips64")
 }
 
+func TestLOONG32REncoder(t *testing.T) {
+	testEndToEnd(t, "loong32r", "loong32r")
+}
+
+func TestLOONG32RErrors(t *testing.T) {
+	testErrors(t, "loong32r", "loong32rerror")
+}
+
 func TestLOONG64Encoder(t *testing.T) {
 	testEndToEnd(t, "loong64", "loong64enc1")
 	testEndToEnd(t, "loong64", "loong64enc2")

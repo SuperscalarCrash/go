@@ -750,6 +750,8 @@ func (s *regAllocState) init(f *Func) {
 			s.allocatable &^= 1 << 9 // R9
 		case "arm64":
 			// nothing to do
+		case "loong32r": // R2 (TP) and R30 (assembler temporary) are already reserved.
+			// nothing to do
 		case "loong64": // R2 (aka TP) already reserved.
 			// nothing to do
 		case "ppc64le": // R2 already reserved.

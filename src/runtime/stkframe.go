@@ -182,7 +182,7 @@ func (frame *stkframe) getStackMap(debug bool) (locals, args bitvector, objs []s
 	size := frame.varp - frame.sp
 	var minsize uintptr
 	switch goarch.ArchFamily {
-	case goarch.ARM64:
+	case goarch.ARM64, goarch.LOONG32R:
 		minsize = sys.StackAlign
 	default:
 		minsize = sys.MinFrameSize

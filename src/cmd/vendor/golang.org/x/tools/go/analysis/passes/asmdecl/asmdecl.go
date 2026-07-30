@@ -98,6 +98,7 @@ var (
 	asmArchRISCV64  = asmArch{name: "riscv64", bigEndian: false, stack: "SP", lr: true, retRegs: []string{"X10", "F10"}, writeResult: []string{"ECALL"}}
 	asmArchS390X    = asmArch{name: "s390x", bigEndian: true, stack: "R15", lr: true}
 	asmArchWasm     = asmArch{name: "wasm", bigEndian: false, stack: "SP", lr: false}
+	asmArchLoong32r = asmArch{name: "loong32r", bigEndian: false, stack: "R3", lr: true, retRegs: []string{"R4", "F0"}, writeResult: []string{"SYSCALL"}}
 	asmArchLoong64  = asmArch{name: "loong64", bigEndian: false, stack: "R3", lr: true, retRegs: []string{"R4", "F0"}, writeResult: []string{"SYSCALL"}}
 
 	arches = []*asmArch{
@@ -114,6 +115,7 @@ var (
 		&asmArchRISCV64,
 		&asmArchS390X,
 		&asmArchWasm,
+		&asmArchLoong32r,
 		&asmArchLoong64,
 	}
 )
@@ -741,6 +743,17 @@ func asmCheckVar(badf func(string, ...any), fn *asmFunc, line, expr string, off 
 				case 'D':
 					src = 8
 				}
+			}
+		case "loong32r":
+			switch op {
+			case "MOVB", "MOVBU":
+				src = 1
+			case "MOVH", "MOVHU":
+				src = 2
+			case "MOVW", "MOVF":
+				src = 4
+			case "MOVD":
+				src = 8
 			}
 		case "loong64", "mips", "mipsle", "mips64", "mips64le":
 			switch op {

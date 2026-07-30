@@ -158,6 +158,18 @@ func main() {
 	}
 
 	slices.SortFunc(archs, func(a, b arch) int {
+		// Append LOONG32R after all existing architectures. This keeps every
+		// pre-existing generated opcode stable while giving the new port its own
+		// contiguous block of generated data.
+		if a.name == b.name {
+			return 0
+		}
+		if a.name == "LOONG32R" {
+			return 1
+		}
+		if b.name == "LOONG32R" {
+			return -1
+		}
 		return strings.Compare(a.name, b.name)
 	})
 

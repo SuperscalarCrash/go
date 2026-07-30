@@ -84,6 +84,7 @@ zsysctl="zsysctl_$GOOSARCH.go"
 mksysnum=
 mktypes=
 mkasm=
+mkpost="go run"
 run="sh"
 
 case "$1" in
@@ -217,6 +218,28 @@ linux_loong64)
         mksysnum="./mksysnum_linux.pl $unistd_h"
         mktypes="GOARCH=$GOARCH go tool cgo -godefs"
         ;;
+linux_loong32r)
+	GOOSARCH_in=syscall_linux_loong32r.go
+	if [ -z "$CC" ]; then
+		echo >&2 'linux/loong32r generation requires CC to name an LA32R cross compiler'
+		exit 1
+	fi
+	sysroot=$($CC -print-sysroot)
+	unistd_h=$sysroot/usr/include/asm/unistd.h
+	if [ ! -f "$unistd_h" ]; then
+		echo >&2 cannot find asm/unistd.h in "$sysroot"
+		exit 1
+	fi
+	# Constant values come from the LA32R headers, while strerror and
+	# strsignal must be run on the build host during cross generation.
+	mkerrors="MKERRORS_HOST_CC=${CC_FOR_BUILD:-cc} $mkerrors"
+	# LA32 ILP32S passes the two words of a 64-bit syscall argument in
+	# consecutive argument slots, without inserting an alignment hole.
+	mksyscall="./mksyscall.pl -l32"
+	mksysnum="./mksysnum_linux.pl $unistd_h"
+	mktypes="GOARCH=$GOARCH go tool cgo -godefs -- -fsigned-char"
+	mkpost="GOOS=$(go env GOHOSTOS) GOARCH=$(go env GOHOSTARCH) go run"
+	;;
 linux_mips)
 	GOOSARCH_in=syscall_linux_mipsx.go
 	unistd_h=/usr/include/asm/unistd.h
@@ -416,7 +439,7 @@ esac
 	if [ -n "$mktypes" ]; then
 		# ztypes_$GOOSARCH.go could be erased before "go run mkpost.go" is called.
 		# Therefore, "go run" tries to recompile syscall package but ztypes is empty and it fails.
-		echo "$mktypes types_$GOOS.go |go run mkpost.go >ztypes_$GOOSARCH.go.NEW && mv ztypes_$GOOSARCH.go.NEW ztypes_$GOOSARCH.go";
+		echo "$mktypes types_$GOOS.go |$mkpost mkpost.go >ztypes_$GOOSARCH.go.NEW && mv ztypes_$GOOSARCH.go.NEW ztypes_$GOOSARCH.go";
 	fi
 	if [ -n "$mkasm" ]; then echo "$mkasm $GOOS $GOARCH"; fi
 ) | $run

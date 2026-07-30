@@ -1785,6 +1785,8 @@ func gccMachine() []string {
 		} else if gomips == "softfloat" {
 			return []string{"-mabi=32", "-msoft-float"}
 		}
+	case "loong32r":
+		return []string{"-mabi=ilp32s"}
 	case "loong64":
 		return []string{"-mabi=lp64d"}
 	}
