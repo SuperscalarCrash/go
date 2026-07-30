@@ -411,7 +411,7 @@ cputicks_retry:
 	RET
 
 TEXT runtime·publicationBarrier(SB),NOSPLIT|NOFRAME,$0-0
-	DBAR	$0x12
+	DBAR	$0
 	RET
 
 // func asmcgocall(fn, arg unsafe.Pointer) int32
@@ -697,16 +697,17 @@ TEXT runtime·panicExtend<ABIInternal>(SB),NOSPLIT,$72-0
 
 // asyncPreempt is entered by rewriting a signal context as if the interrupted
 // code had called this function. The signal setup saves the interrupted LR at
-// 0(SP), installs the resume PC in R1, and moves SP down by one word.
+// 0(SP), installs the resume PC in R1, and moves SP down by one aligned frame.
 //
 // Save every compiler-visible general register except g (R22), SP (R3), and
 // the architectural zero register. R30 is reserved as the linker temporary,
 // so it may be used for the final indirect jump.
 TEXT runtime·asyncPreempt(SB),NOSPLIT|NOFRAME,$0-0
-	// pushCall has already consumed four bytes. Reserve another 124 so the
-	// call to asyncPreempt2 observes the architecture's 16-byte StackAlign.
-	MOVW	R1, -124(R3)
-	SUB	$124, R3
+	// pushCall has already consumed a 16-byte synthetic frame. Reserve a
+	// further 128 bytes so both this entry and the call to asyncPreempt2
+	// observe the architecture's StackAlign.
+	MOVW	R1, -128(R3)
+	SUB	$128, R3
 	MOVW	R2, 4(R3)
 	MOVW	R4, 8(R3)
 	MOVW	R5, 12(R3)
@@ -766,11 +767,12 @@ TEXT runtime·asyncPreempt(SB),NOSPLIT|NOFRAME,$0-0
 	MOVW	8(R3), R4
 	MOVW	4(R3), R2
 	// The first slot holds the resume PC saved from R1. pushCall left the
-	// interrupted function's LR in the final slot. Restore that LR to R1,
-	// then use reserved REGTMP to jump back to the interrupted PC.
-	MOVW	124(R3), R1
+	// interrupted function's LR at the bottom of its 16-byte synthetic frame.
+	// Restore that LR to R1, then use reserved REGTMP to jump back to the
+	// interrupted PC.
+	MOVW	128(R3), R1
 	MOVW	0(R3), R30
-	ADD	$128, R3
+	ADD	$144, R3
 	JMP	(R30)
 
 // The top-most function running on a goroutine returns to goexit+PCQuantum.

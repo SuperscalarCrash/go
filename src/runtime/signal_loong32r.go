@@ -50,7 +50,11 @@ func (c *sigctxt) preparePanic(sig uint32, gp *g) {
 }
 
 func (c *sigctxt) pushCall(targetPC, resumePC uintptr) {
-	sp := c.sp() - 4
+	// Keep the injected function's entry SP aligned. The unwinder also
+	// advances over this synthetic frame by alignUp(MinFrameSize,
+	// StackAlign), so reserving only the link word would corrupt the caller's
+	// SP during traceback.
+	sp := c.sp() - sys.StackAlign
 	c.set_sp(sp)
 	*(*uint32)(unsafe.Pointer(uintptr(sp))) = c.link()
 	c.set_link(uint32(resumePC))

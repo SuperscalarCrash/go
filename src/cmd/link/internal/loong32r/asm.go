@@ -63,6 +63,62 @@ func gentext(ctxt *ld.Link, ldr *loader.Loader) {
 	rel3.SetSym(addmoduledata)
 }
 
+// pairedPCAddReloc returns the high relocation paired with a PCADD low
+// relocation. LA32R address sequences emitted by GCC place the PCADDU12I
+// immediately before the low instruction. The ELF low relocation names a
+// local label at that PCADDU12I, not the final target symbol, so internal
+// linking must take the target and addend from the high relocation.
+func pairedPCAddReloc(ldr *loader.Loader, s loader.Sym, rIdx int, elfHi, goHi objabi.RelocType) (loader.Reloc, bool) {
+	relocs := ldr.Relocs(s)
+	lowOff := relocs.At(rIdx).Off()
+	for i := rIdx - 1; i >= 0; i-- {
+		r := relocs.At(i)
+		if r.Off() < lowOff-4 {
+			break
+		}
+		if r.Off() == lowOff-4 && (r.Type() == elfHi || r.Type() == goHi) {
+			return r, true
+		}
+	}
+	return loader.Reloc{}, false
+}
+
+// pcAddHighReloc returns the Go relocation paired with a PCADD low
+// relocation. Most sequences are adjacent and use the same addend for both
+// relocations. The LA32R PLT header deliberately shares one PCADDU12I between
+// multiple low instructions; its low addends compensate for that distance
+// during internal linking. Account for the same compensation when emitting
+// the local high label required by an external ELF relocation.
+func pcAddHighReloc(ldr *loader.Loader, s loader.Sym, rIdx int) (loader.Reloc, bool) {
+	relocs := ldr.Relocs(s)
+	low := relocs.At(rIdx)
+	var highType objabi.RelocType
+	switch low.Type() {
+	case objabi.R_LOONG32R_ADDR_LO:
+		highType = objabi.R_LOONG32R_ADDR_HI
+	case objabi.R_LOONG32R_GOT_LO:
+		highType = objabi.R_LOONG32R_GOT_HI
+	case objabi.R_LOONG32R_TLS_IE_LO:
+		highType = objabi.R_LOONG32R_TLS_IE_HI
+	default:
+		return loader.Reloc{}, false
+	}
+
+	for i := rIdx - 1; i >= 0; i-- {
+		high := relocs.At(i)
+		if high.Type() != highType || high.Sym() != low.Sym() {
+			continue
+		}
+		// Internal relocation applies low.Add at low.Off-4. Match the high
+		// whose own PC and addend describe that same target displacement.
+		wantHighOff := int64(low.Off()) - 4 + high.Add() - low.Add()
+		if int64(high.Off()) == wantHighOff {
+			return high, true
+		}
+	}
+	return loader.Reloc{}, false
+}
+
 func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loader.Sym, r loader.Reloc, rIdx int) bool {
 	targ := r.Sym()
 	var targType sym.SymKind
@@ -110,26 +166,43 @@ func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loade
 		su.SetRelocType(rIdx, relocType)
 		return true
 
-	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_GOT_PCADD_HI20),
-		objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_GOT_PCADD_LO12):
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_GOT_PCADD_HI20):
 		if targType != sym.SDYNIMPORT {
 			// TODO: turn LDR of GOT entry into ADR of symbol itself
 		}
 
-		ld.AddGotSym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
+		addgotsym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
 		su := ldr.MakeSymbolUpdater(s)
-		if r.Type() == objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_GOT_PCADD_HI20) {
-			su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_HI)
-		} else {
-			su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_LO)
-		}
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_HI)
 		su.SetRelocSym(rIdx, syms.GOT)
 		su.SetRelocAdd(rIdx, r.Add()+int64(ldr.SymGot(targ)))
 		return true
 
-	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCADD_HI20),
-		objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCADD_LO12),
-		objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCREL20_S2):
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_GOT_PCADD_LO12):
+		hi, ok := pairedPCAddReloc(ldr, s, rIdx,
+			objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_GOT_PCADD_HI20),
+			objabi.R_LOONG32R_ADDR_HI)
+		if !ok {
+			ldr.Errorf(s, "R_LARCH_GOT_PCADD_LO12 has no paired high relocation")
+			return false
+		}
+		su := ldr.MakeSymbolUpdater(s)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_LO)
+		if hi.Type() == objabi.R_LOONG32R_ADDR_HI {
+			// The high relocation was already rewritten. Reuse its GOT
+			// target rather than the local label named by the ELF low
+			// relocation.
+			su.SetRelocSym(rIdx, hi.Sym())
+			su.SetRelocAdd(rIdx, hi.Add())
+			return true
+		}
+		hiTarg := hi.Sym()
+		addgotsym(target, ldr, syms, hiTarg, uint32(elf.R_LARCH_32))
+		su.SetRelocSym(rIdx, syms.GOT)
+		su.SetRelocAdd(rIdx, hi.Add()+int64(ldr.SymGot(hiTarg)))
+		return true
+
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCADD_HI20):
 		if targType == sym.SDYNIMPORT {
 			ldr.Errorf(s, "unexpected relocation for dynamic symbol %s", ldr.SymName(targ))
 		}
@@ -137,17 +210,55 @@ func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loade
 			ldr.Errorf(s, "unknown symbol %s", ldr.SymName(targ))
 		}
 
-		var relocType objabi.RelocType
-		switch r.Type() - objabi.ElfRelocOffset {
-		case objabi.RelocType(elf.R_LARCH_PCADD_HI20):
-			relocType = objabi.R_LOONG32R_ADDR_HI
-		case objabi.RelocType(elf.R_LARCH_PCADD_LO12):
-			relocType = objabi.R_LOONG32R_ADDR_LO
-		case objabi.RelocType(elf.R_LARCH_PCREL20_S2):
-			relocType = objabi.R_LOONG32R_ADDR_PCREL20_S2
+		su := ldr.MakeSymbolUpdater(s)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_HI)
+		return true
+
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCADD_LO12):
+		hi, ok := pairedPCAddReloc(ldr, s, rIdx,
+			objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_PCADD_HI20),
+			objabi.R_LOONG32R_ADDR_HI)
+		if !ok {
+			ldr.Errorf(s, "R_LARCH_PCADD_LO12 has no paired high relocation")
+			return false
 		}
 		su := ldr.MakeSymbolUpdater(s)
-		su.SetRelocType(rIdx, relocType)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_LO)
+		su.SetRelocSym(rIdx, hi.Sym())
+		su.SetRelocAdd(rIdx, hi.Add())
+		return true
+
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_PCREL20_S2):
+		if targType == sym.SDYNIMPORT {
+			ldr.Errorf(s, "unexpected relocation for dynamic symbol %s", ldr.SymName(targ))
+		}
+		if targType == 0 || targType == sym.SXREF {
+			ldr.Errorf(s, "unknown symbol %s", ldr.SymName(targ))
+		}
+		su := ldr.MakeSymbolUpdater(s)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_PCREL20_S2)
+		return true
+
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_TLS_IE_PCADD_HI20):
+		if targType == 0 || targType == sym.SXREF {
+			ldr.Errorf(s, "unknown TLS symbol %s", ldr.SymName(targ))
+		}
+		su := ldr.MakeSymbolUpdater(s)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_TLS_IE_HI)
+		return true
+
+	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_TLS_IE_PCADD_LO12):
+		hi, ok := pairedPCAddReloc(ldr, s, rIdx,
+			objabi.ElfRelocOffset+objabi.RelocType(elf.R_LARCH_TLS_IE_PCADD_HI20),
+			objabi.R_LOONG32R_TLS_IE_HI)
+		if !ok {
+			ldr.Errorf(s, "R_LARCH_TLS_IE_PCADD_LO12 has no paired high relocation")
+			return false
+		}
+		su := ldr.MakeSymbolUpdater(s)
+		su.SetRelocType(rIdx, objabi.R_LOONG32R_TLS_IE_LO)
+		su.SetRelocSym(rIdx, hi.Sym())
+		su.SetRelocAdd(rIdx, hi.Add())
 		return true
 
 	case objabi.ElfRelocOffset + objabi.RelocType(elf.R_LARCH_ADD32),
@@ -209,7 +320,7 @@ func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loade
 			// The code is asking for the address of an external
 			// function. We provide it with the address of the
 			// correspondent GOT symbol.
-			ld.AddGotSym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
+			addgotsym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
 			su := ldr.MakeSymbolUpdater(s)
 			su.SetRelocSym(rIdx, syms.GOT)
 			su.SetRelocAdd(rIdx, r.Add()+int64(ldr.SymGot(targ)))
@@ -296,7 +407,7 @@ func adddynrel(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loade
 
 	case objabi.R_LOONG32R_GOT_HI,
 		objabi.R_LOONG32R_GOT_LO:
-		ld.AddGotSym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
+		addgotsym(target, ldr, syms, targ, uint32(elf.R_LARCH_32))
 		su := ldr.MakeSymbolUpdater(s)
 		if r.Type() == objabi.R_LOONG32R_GOT_HI {
 			su.SetRelocType(rIdx, objabi.R_LOONG32R_ADDR_HI)
@@ -350,6 +461,34 @@ func elfsetupplt(ctxt *ld.Link, ldr *loader.Loader, plt, gotplt *loader.SymbolBu
 		gotplt.AddUint32(ctxt.Arch, 0)
 		gotplt.AddUint32(ctxt.Arch, 0)
 	}
+}
+
+// addgotsym adds an LA32R GOT slot and its ELF32 Rela relocation.
+//
+// The linker's generic AddGotSym helper emits Elf32_Rel for all 32-bit
+// targets. LoongArch uses Rela even for ELF32, so using that helper silently
+// left the GOT slot at zero: the relocation was added to the unused .rel
+// symbol while the LA32R ELF writer emitted .rela. Keep this target-specific
+// so no other architecture's relocation format is affected.
+func addgotsym(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loader.Sym, elfRelocTyp uint32) {
+	if ldr.SymGot(s) >= 0 {
+		return
+	}
+
+	ld.Adddynsym(ldr, target, syms, s)
+	got := ldr.MakeSymbolUpdater(syms.GOT)
+	ldr.SetGot(s, int32(got.Size()))
+	got.AddUint32(target.Arch, 0)
+
+	if !target.IsElf() {
+		ldr.Errorf(s, "addgotsym: unsupported binary format")
+		return
+	}
+
+	rela := ldr.MakeSymbolUpdater(syms.Rela)
+	rela.AddAddrPlus(target.Arch, got.Sym(), int64(ldr.SymGot(s)))
+	rela.AddUint32(target.Arch, elf.R_INFO32(uint32(ldr.SymDynid(s)), elfRelocTyp))
+	rela.AddUint32(target.Arch, 0)
 }
 
 func addpltsym(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, s loader.Sym) {
@@ -419,11 +558,12 @@ func genSymsLate(ctxt *ld.Link, ldr *loader.Loader) {
 				continue
 			}
 
-			hiOff := int64(r.Off()) - 4
-			if hiOff < 0 {
-				ldr.Errorf(s, "PCADD_LO12 relocation has no preceding PCADD_HI20")
+			hi, ok := pcAddHighReloc(ldr, s, ri)
+			if !ok {
+				ldr.Errorf(s, "PCADD_LO12 relocation has no matching PCADD_HI20")
 				continue
 			}
+			hiOff := int64(hi.Off())
 			if hiOff == 0 && ldr.SymType(s).IsText() {
 				continue
 			}
@@ -471,10 +611,14 @@ func elfreloc1(ctxt *ld.Link, out *ld.OutBuf, ldr *loader.Loader, s loader.Sym, 
 	writePCAddLo := func(typ elf.R_LARCH) {
 		// PCADD_LO12 does not name the final target. It names the matching
 		// PCADD_HI20 instruction, whose relocation carries the target and
-		// addend. Every dedicated LA32R address sequence places that high
-		// instruction immediately before the low instruction.
-		relocs := ldr.Relocs(s)
-		hiValue := ldr.SymValue(s) + int64(relocs.At(ri).Off()) - 4
+		// addend. The PLT header may share one high between multiple lows.
+		hi, ok := pcAddHighReloc(ldr, s, ri)
+		if !ok {
+			ld.Errorf("LA32R PCADD_LO12 relocation has no matching PCADD_HI20 at %d", sectoff)
+			writeRelaSym(typ, 0, 0)
+			return
+		}
+		hiValue := ldr.SymValue(s) + int64(hi.Off())
 		hiSym := findPCAddHI20Symbol(ctxt, ldr, hiValue)
 		if hiSym == 0 {
 			ld.Errorf("failed to find LA32R PCADD_HI20 symbol at %d (%x)", sectoff, hiValue)
@@ -543,6 +687,21 @@ func machoreloc1(*sys.Arch, *ld.OutBuf, *loader.Loader, loader.Sym, loader.ExtRe
 	return false
 }
 
+func validPCRelativeOffset(offset int64, bits uint) bool {
+	limit := int64(1) << (bits - 1)
+	return offset&3 == 0 && offset >= -limit && offset < limit
+}
+
+func checkPCRelativeOffset(ldr *loader.Loader, s, target loader.Sym, offset int64, bits uint) {
+	if offset&3 != 0 {
+		ldr.Errorf(s, "relocation target %s is not 4-byte aligned: offset %d", ldr.SymName(target), offset)
+		return
+	}
+	if !validPCRelativeOffset(offset, bits) {
+		ldr.Errorf(s, "%d-bit PC-relative relocation to %s is out of range: offset %d", bits, ldr.SymName(target), offset)
+	}
+}
+
 func archreloc(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, r loader.Reloc, s loader.Sym, val int64) (o int64, nExtReloc int, ok bool) {
 	rs := r.Sym()
 	if target.IsExternal() {
@@ -597,7 +756,9 @@ func archreloc(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, r loade
 		return val&0xfe00001f | ((((t + 0x800) >> 12) & 0xfffff) << 5), noExtReloc, isOk
 	case objabi.R_LOONG32R_ADDR_PCREL20_S2:
 		pc := ldr.SymValue(s) + int64(r.Off())
-		t := (ldr.SymAddr(rs) + r.Add() - pc) >> 2
+		offset := ldr.SymAddr(rs) + r.Add() - pc
+		checkPCRelativeOffset(ldr, s, rs, offset, 22)
+		t := offset >> 2
 		return val&0xfe00001f | ((t & 0xfffff) << 5), noExtReloc, isOk
 	case objabi.R_LOONG32R_TLS_LE_HI,
 		objabi.R_LOONG32R_TLS_LE_LO:
@@ -610,11 +771,15 @@ func archreloc(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, r loade
 		objabi.R_JMPLOONG32R:
 		pc := ldr.SymValue(s) + int64(r.Off())
 		t := ldr.SymAddr(rs) + r.Add() - pc
+		checkPCRelativeOffset(ldr, s, rs, t, 28)
 		return val&0xfc000000 | (((t >> 2) & 0xffff) << 10) | (((t >> 2) & 0x3ff0000) >> 16), noExtReloc, isOk
 
 	case objabi.R_LOONG32R_CALL30:
 		pc := ldr.SymValue(s) + int64(r.Off())
 		t := ldr.SymAddr(rs) + r.Add() - pc
+		if t&3 != 0 {
+			ldr.Errorf(s, "R_LARCH_CALL30 target %s is not 4-byte aligned: offset %d", ldr.SymName(rs), t)
+		}
 		// val is PCADDU12I (low word) followed by JIRL (high word).
 		pcaddu12i := (val & 0xfe00001f) | (((t >> 12) & 0xfffff) << 5)
 		jirl := ((val >> 32) & 0xfc0003ff) | (((t >> 2) & 0x3ff) << 10)
@@ -625,8 +790,10 @@ func archreloc(target *ld.Target, ldr *loader.Loader, syms *ld.ArchSyms, r loade
 		pc := ldr.SymValue(s) + int64(r.Off())
 		t := ldr.SymAddr(rs) + r.Add() - pc
 		if r.Type() == objabi.R_JMP16LOONG32R {
+			checkPCRelativeOffset(ldr, s, rs, t, 18)
 			return val&0xfc0003ff | (((t >> 2) & 0xffff) << 10), noExtReloc, isOk
 		}
+		checkPCRelativeOffset(ldr, s, rs, t, 23)
 		return val&0xfc0003e0 | (((t >> 2) & 0xffff) << 10) | (((t >> 2) & 0x1f0000) >> 16), noExtReloc, isOk
 
 	case objabi.R_LOONG32R_TLS_IE_HI,

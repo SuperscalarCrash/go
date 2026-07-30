@@ -50,9 +50,9 @@ TEXT runtime·exit(SB),NOSPLIT|NOFRAME,$0-4
 
 TEXT runtime·exitThread(SB),NOSPLIT|NOFRAME,$0-4
 	MOVW	wait+0(FP), R12
-	DBAR	$0x12
+	DBAR	$0
 	MOVW	R0, 0(R12)
-	DBAR	$0x12
+	DBAR	$0
 	MOVW	R0, R4
 	MOVW	$SYS_exit, R11
 	SYSCALL

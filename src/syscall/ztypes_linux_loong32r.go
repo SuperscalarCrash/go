@@ -591,6 +591,7 @@ type Ustat_t struct {
 
 type EpollEvent struct {
 	Events uint32
+	PadFd  int32
 	Fd     int32
 	Pad    int32
 }

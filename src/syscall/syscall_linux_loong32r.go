@@ -42,7 +42,7 @@ const (
 //sys Setfsgid(gid int) (err error)
 //sys Setfsuid(uid int) (err error)
 //sys Shutdown(fd int, how int) (err error)
-//sys Splice(rfd int, roff *int64, wfd int, woff *int64, len int, flags int) (n int64, err error)
+//sys Splice(rfd int, roff *int64, wfd int, woff *int64, len int, flags int) (n int, err error)
 //sys Truncate(path string, length int64) (err error) = SYS_TRUNCATE64
 //sys accept4(s int, rsa *RawSockaddrAny, addrlen *_Socklen, flags int) (fd int, err error)
 //sys bind(s int, addr unsafe.Pointer, addrlen _Socklen) (err error)

@@ -17,6 +17,7 @@ func Init(arch *ssagen.ArchInfo) {
 	// The floating-point extension is optional in LA32R. Keep the baseline
 	// GOARCH usable on implementations without an FPU.
 	arch.SoftFloat = true
+	arch.PadFrame = padframe
 	arch.ZeroRange = zerorange
 	arch.Ginsnop = ginsnop
 	arch.SSAMarkMoves = func(s *ssagen.State, b *ssa.Block) {}

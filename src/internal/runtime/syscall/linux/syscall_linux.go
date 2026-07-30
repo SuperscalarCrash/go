@@ -75,7 +75,7 @@ func Pread(fd int, p []byte, offset int64) (n int, errno uintptr) {
 	}
 	var r1, e uintptr
 	switch goarch.GOARCH {
-	case "386":
+	case "386", "loong32r":
 		r1, _, e = Syscall6(SYS_PREAD64, uintptr(fd), uintptr(p0), uintptr(len(p)), uintptr(offset), uintptr(offset>>32), 0)
 	case "arm", "mipsle":
 		r1, _, e = Syscall6(SYS_PREAD64, uintptr(fd), uintptr(p0), uintptr(len(p)), 0, uintptr(offset), uintptr(offset>>32))
