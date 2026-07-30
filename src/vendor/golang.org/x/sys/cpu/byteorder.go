@@ -43,6 +43,8 @@ func (bigEndian) Uint64(b []byte) uint64 {
 // bigEndian on big-endian machines.
 func hostByteOrder() byteOrder {
 	switch runtime.GOARCH {
+	case "loong32r":
+		return littleEndian{}
 	case "386", "amd64", "amd64p32",
 		"alpha",
 		"arm", "arm64",
