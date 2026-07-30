@@ -106,3 +106,63 @@ jobs:
             ${{ steps.distribution.outputs.checksum }}
           if-no-files-found: error
           compression-level: 0
+
+  release:
+    name: Publish GitHub Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download toolchain artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: "*-amd64"
+          path: release-assets
+          merge-multiple: true
+
+      - name: Verify release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mapfile -t archives < <(
+            find release-assets -maxdepth 1 -type f \
+              \( -name '*.linux-amd64.tar.gz' -o -name '*.windows-amd64.zip' \) \
+              -print | sort
+          )
+          if [[ "${#archives[@]}" -ne 2 ]]; then
+            echo "expected two toolchain archives, found ${#archives[@]}" >&2
+            find release-assets -maxdepth 1 -type f -print >&2
+            exit 1
+          fi
+
+          for archive in "${archives[@]}"; do
+            if [[ ! -f "${archive}.sha256" ]]; then
+              echo "missing checksum for $archive" >&2
+              exit 1
+            fi
+            (
+              cd "$(dirname "$archive")"
+              sha256sum --check "$(basename "$archive").sha256"
+            )
+          done
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          else
+            gh release create "$RELEASE_TAG" release-assets/* \
+              --verify-tag \
+              --title "$RELEASE_TAG" \
+              --generate-notes
+          fi
