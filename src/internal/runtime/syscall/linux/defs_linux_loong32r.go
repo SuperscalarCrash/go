@@ -26,9 +26,10 @@ const (
 	O_LARGEFILE  = 0
 )
 
-// The LA32R ILP32 ABI aligns the 64-bit epoll data field to four bytes.
-// This matches the 12-byte struct epoll_event exposed by the target UAPI.
+// The LA32R ILP32S C ABI aligns the 64-bit epoll data field to eight bytes.
+// This matches the 16-byte struct epoll_event exposed by the target UAPI.
 type EpollEvent struct {
 	Events uint32
+	_      uint32
 	Data   [8]byte
 }
