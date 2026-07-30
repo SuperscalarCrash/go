@@ -1,0 +1,108 @@
+name: Build release toolchains
+
+on:
+  push:
+    tags:
+      - "v*"
+      - "go*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-toolchains-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-amd64
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        goos:
+          - linux
+          - windows
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v5
+
+      - name: Install the official Go 1.26 bootstrap toolchain
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          check-latest: true
+          cache: false
+
+      - name: Verify bootstrap toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          bootstrap_version="$(go env GOVERSION)"
+          if [[ "$bootstrap_version" != go1.26.* ]]; then
+            echo "expected an official Go 1.26 bootstrap toolchain, got $bootstrap_version" >&2
+            exit 1
+          fi
+
+          echo "GOROOT_BOOTSTRAP=$(go env GOROOT)" >> "$GITHUB_ENV"
+          go version
+
+      - name: Build complete ${{ matrix.goos }}-amd64 toolchain
+        shell: bash
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: amd64
+        run: |
+          set -euo pipefail
+          cd src
+          ./make.bash -distpack
+
+      - name: Verify and checksum distribution
+        id: distribution
+        shell: bash
+        env:
+          TARGET_GOOS: ${{ matrix.goos }}
+          TARGET_GOARCH: amd64
+        run: |
+          set -euo pipefail
+
+          version="$(head -n 1 VERSION)"
+          case "$TARGET_GOOS" in
+            linux)
+              archive="pkg/distpack/${version}.${TARGET_GOOS}-${TARGET_GOARCH}.tar.gz"
+              tar -tzf "$archive" | grep -qx 'go/bin/go'
+              tar -tzf "$archive" | grep -qx "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile"
+              ;;
+            windows)
+              archive="pkg/distpack/${version}.${TARGET_GOOS}-${TARGET_GOARCH}.zip"
+              unzip -Z1 "$archive" | grep -qx 'go/bin/go.exe'
+              unzip -Z1 "$archive" | grep -qx "go/pkg/tool/${TARGET_GOOS}_${TARGET_GOARCH}/compile.exe"
+              ;;
+            *)
+              echo "unsupported target OS: $TARGET_GOOS" >&2
+              exit 1
+              ;;
+          esac
+
+          archive_dir="$(dirname "$archive")"
+          archive_name="$(basename "$archive")"
+          (
+            cd "$archive_dir"
+            sha256sum "$archive_name" > "${archive_name}.sha256"
+          )
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+          echo "checksum=${archive}.sha256" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ${{ matrix.goos }}-amd64 toolchain
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.distribution.outputs.version }}-${{ matrix.goos }}-amd64
+          path: |
+            ${{ steps.distribution.outputs.archive }}
+            ${{ steps.distribution.outputs.checksum }}
+          if-no-files-found: error
+          compression-level: 0
