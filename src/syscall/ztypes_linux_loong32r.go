@@ -541,6 +541,7 @@ type PtraceRegs struct {
 	Era      uint32
 	Badv     uint32
 	Reserved [10]uint32
+	_        [4]byte
 }
 
 type ptracePsw struct {

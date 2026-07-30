@@ -55,6 +55,19 @@ func TestLoong32rEpollEvent(t *testing.T) {
 	}
 }
 
+func TestLoong32rPtraceRegsLayout(t *testing.T) {
+	var regs syscall.PtraceRegs
+	if got, want := unsafe.Sizeof(regs), uintptr(184); got != want {
+		t.Fatalf("sizeof(PtraceRegs) = %d, want %d", got, want)
+	}
+	if got, want := unsafe.Offsetof(regs.Era), uintptr(132); got != want {
+		t.Fatalf("offsetof(PtraceRegs.Era) = %d, want %d", got, want)
+	}
+	if got, want := unsafe.Offsetof(regs.Badv), uintptr(136); got != want {
+		t.Fatalf("offsetof(PtraceRegs.Badv) = %d, want %d", got, want)
+	}
+}
+
 func TestLoong32rLargeFileSyscalls(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "large-file")
 	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0600)
