@@ -1735,6 +1735,12 @@ func buildModeSupported(compiler, buildmode, goos, goarch string) bool {
 	}
 
 	platform := goos + "/" + goarch
+	if platform == "linux/loong32r" {
+		switch buildmode {
+		case "c-archive", "c-shared", "pie", "plugin":
+			return true
+		}
+	}
 
 	switch buildmode {
 	case "archive":

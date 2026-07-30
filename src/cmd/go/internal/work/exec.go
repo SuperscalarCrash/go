@@ -2776,6 +2776,8 @@ func (b *Builder) gccArchArgs() []string {
 		} else if cfg.GOMIPS == "softfloat" {
 			return append(args, "-msoft-float")
 		}
+	case "loong32r":
+		return []string{"-mabi=ilp32s"}
 	case "loong64":
 		return []string{"-mabi=lp64d"}
 	case "ppc64":
